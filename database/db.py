@@ -75,3 +75,16 @@ def seed_db() -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def register_user(name: str, email: str, password: str) -> int:
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+            (name, email, generate_password_hash(password)),
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
