@@ -77,6 +77,17 @@ def seed_db() -> None:
         conn.close()
 
 
+def get_user_by_email(email: str) -> sqlite3.Row | None:
+    conn = get_db()
+    try:
+        return conn.execute(
+            "SELECT id, name, email, password_hash FROM users WHERE email = ?",
+            (email,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+
 def register_user(name: str, email: str, password: str) -> int:
     conn = get_db()
     try:
