@@ -1,11 +1,20 @@
 import functools
 import os
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Callable
 
 from dotenv import load_dotenv
-from flask import Flask, Response, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    Response,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from werkzeug.security import check_password_hash
 
 from database.db import (
@@ -34,6 +43,7 @@ with app.app_context():
 # Auth helpers                                                        #
 # ------------------------------------------------------------------ #
 
+
 def login_required(f: Callable) -> Callable:
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -41,12 +51,50 @@ def login_required(f: Callable) -> Callable:
             flash("Please log in to continue.")
             return redirect(url_for("login"))
         return f(*args, **kwargs)
+
     return decorated
+
+
+# ------------------------------------------------------------------ #
+# View helpers                                                        #
+# ------------------------------------------------------------------ #
+
+
+_VALID_PRESETS: set[str] = {"all", "last30", "last90", "last365"}
+_PRESET_DAYS: dict[str, int] = {"last30": 30, "last90": 90, "last365": 365}
+
+
+def parse_date_filter(args: dict) -> tuple[str | None, str | None]:
+    """Parse query-string args into a (start_date, end_date) tuple (YYYY-MM-DD).
+
+    Priority: custom start+end > preset > all-time (None, None).
+    Any malformed input falls back to (None, None) gracefully.
+    """
+    today = date.today()
+
+    # Custom range takes priority if both params parse cleanly
+    raw_start = args.get("start", "").strip()
+    raw_end = args.get("end", "").strip()
+    if raw_start and raw_end:
+        try:
+            datetime.strptime(raw_start, "%Y-%m-%d")
+            datetime.strptime(raw_end, "%Y-%m-%d")
+            return raw_start, raw_end
+        except ValueError:
+            pass  # fall through to preset logic
+
+    preset = args.get("preset", "all")
+    if preset in _PRESET_DAYS:
+        start = (today - timedelta(days=_PRESET_DAYS[preset])).strftime("%Y-%m-%d")
+        end = today.strftime("%Y-%m-%d")
+        return start, end
+    return None, None
 
 
 # ------------------------------------------------------------------ #
 # Routes                                                              #
 # ------------------------------------------------------------------ #
+
 
 @app.route("/")
 def landing():
@@ -66,16 +114,33 @@ def register():
     password = request.form.get("password", "")
 
     if not name:
-        return render_template("register.html", error="Full name is required.", name=name, email=email)
+        return render_template(
+            "register.html", error="Full name is required.", name=name, email=email
+        )
     if not email or "@" not in email:
-        return render_template("register.html", error="A valid email address is required.", name=name, email=email)
+        return render_template(
+            "register.html",
+            error="A valid email address is required.",
+            name=name,
+            email=email,
+        )
     if len(password) < 8:
-        return render_template("register.html", error="Password must be at least 8 characters.", name=name, email=email)
+        return render_template(
+            "register.html",
+            error="Password must be at least 8 characters.",
+            name=name,
+            email=email,
+        )
 
     try:
         register_user(name, email, password)
     except sqlite3.IntegrityError:
-        return render_template("register.html", error="An account with that email already exists.", name=name, email=email)
+        return render_template(
+            "register.html",
+            error="An account with that email already exists.",
+            name=name,
+            email=email,
+        )
 
     flash("Account created — please sign in.")
     return redirect(url_for("login"))
@@ -93,11 +158,15 @@ def login() -> str | Response:
     password = request.form.get("password", "")
 
     if not email or not password:
-        return render_template("login.html", error="Email and password are required.", email=email)
+        return render_template(
+            "login.html", error="Email and password are required.", email=email
+        )
 
     user = get_user_by_email(email)
     if user is None or not check_password_hash(user["password_hash"], password):
-        return render_template("login.html", error="Invalid email or password.", email=email)
+        return render_template(
+            "login.html", error="Invalid email or password.", email=email
+        )
 
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
@@ -118,6 +187,7 @@ def privacy():
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
 
+
 @app.route("/logout")
 def logout() -> Response:
     session.clear()
@@ -137,7 +207,9 @@ def profile() -> str:
         return redirect(url_for("login"))
 
     try:
-        member_since = datetime.strptime(db_user["created_at"], "%Y-%m-%d %H:%M:%S").strftime("%B %Y")
+        member_since = datetime.strptime(
+            db_user["created_at"], "%Y-%m-%d %H:%M:%S"
+        ).strftime("%B %Y")
     except (ValueError, TypeError):
         member_since = "Unknown"
 
@@ -149,9 +221,29 @@ def profile() -> str:
         "initials": initials,
         "member_since": member_since,
     }
-    stats = get_profile_stats(user_id)
-    transactions = get_recent_transactions(user_id, limit=6)
-    categories = get_category_breakdown(user_id)
+    start_date, end_date = parse_date_filter(request.args)
+
+    # Allowlist the preset so only known values reach the template.
+    raw_preset = request.args.get("preset", "all")
+    active_preset = raw_preset if raw_preset in _VALID_PRESETS else "all"
+
+    # Format custom date labels as "Month D, YYYY" for display consistency.
+    start_label = (
+        datetime.strptime(start_date, "%Y-%m-%d").strftime("%B %-d, %Y")
+        if start_date and active_preset == "all"
+        else None
+    )
+    end_label = (
+        datetime.strptime(end_date, "%Y-%m-%d").strftime("%B %-d, %Y")
+        if end_date and active_preset == "all"
+        else None
+    )
+
+    stats = get_profile_stats(user_id, start=start_date, end=end_date)
+    transactions = get_recent_transactions(
+        user_id, limit=6, start=start_date, end=end_date
+    )
+    categories = get_category_breakdown(user_id, start=start_date, end=end_date)
 
     return render_template(
         "profile.html",
@@ -159,6 +251,11 @@ def profile() -> str:
         stats=stats,
         transactions=transactions,
         categories=categories,
+        active_preset=active_preset,
+        start_date=start_date,
+        end_date=end_date,
+        start_label=start_label,
+        end_label=end_label,
     )
 
 
