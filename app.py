@@ -115,8 +115,41 @@ def logout() -> Response:
 
 
 @app.route("/profile")
-def profile():
-    return "Profile page — coming in Step 4"
+@login_required
+def profile() -> str:
+    user = {
+        "name": "Alex Rivera",
+        "email": "alex@example.com",
+        "initials": "AR",
+        "member_since": "January 2024",
+    }
+    stats = {
+        "total_spent": "$2,840.50",
+        "transaction_count": 24,
+        "top_category": "Food & Dining",
+    }
+    transactions = [
+        {"date": "May 20, 2025", "description": "Grocery run",       "category": "food",      "amount": "$87.40"},
+        {"date": "May 18, 2025", "description": "Monthly gym",       "category": "health",    "amount": "$45.00"},
+        {"date": "May 15, 2025", "description": "Electricity bill",  "category": "utilities", "amount": "$120.00"},
+        {"date": "May 12, 2025", "description": "Dinner out",        "category": "food",      "amount": "$63.20"},
+        {"date": "May 08, 2025", "description": "Bus pass",          "category": "transport", "amount": "$30.00"},
+        {"date": "May 05, 2025", "description": "Netflix",           "category": "leisure",   "amount": "$15.99"},
+    ]
+    categories = [
+        {"name": "Food & Dining", "amount": "$620.00", "pct": 72},
+        {"name": "Utilities",     "amount": "$240.00", "pct": 28},
+        {"name": "Health",        "amount": "$180.00", "pct": 21},
+        {"name": "Transport",     "amount": "$120.00", "pct": 14},
+        {"name": "Leisure",       "amount": "$95.00",  "pct": 11},
+    ]
+    return render_template(
+        "profile.html",
+        user=user,
+        stats=stats,
+        transactions=transactions,
+        categories=categories,
+    )
 
 
 @app.route("/expenses/add")
