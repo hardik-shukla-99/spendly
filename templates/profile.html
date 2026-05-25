@@ -15,6 +15,43 @@
             </div>
         </section>
 
+        <!-- ── Filter bar ── -->
+        <section class="filter-bar" aria-label="Date filter">
+            <div class="filter-presets">
+                <a href="{{ url_for('profile') }}?preset=all"
+                   class="filter-btn{% if active_preset == 'all' and not start_date %} filter-btn--active{% endif %}">
+                    All Time
+                </a>
+                <a href="{{ url_for('profile') }}?preset=last30"
+                   class="filter-btn{% if active_preset == 'last30' %} filter-btn--active{% endif %}">
+                    Last 30 Days
+                </a>
+                <a href="{{ url_for('profile') }}?preset=last90"
+                   class="filter-btn{% if active_preset == 'last90' %} filter-btn--active{% endif %}">
+                    Last 3 Months
+                </a>
+                <a href="{{ url_for('profile') }}?preset=last365"
+                   class="filter-btn{% if active_preset == 'last365' %} filter-btn--active{% endif %}">
+                    This Year
+                </a>
+            </div>
+            <form class="filter-custom" method="GET" action="{{ url_for('profile') }}">
+                <input type="date" name="start" value="{{ start_date or '' }}" aria-label="From date">
+                <span class="filter-sep">–</span>
+                <input type="date" name="end" value="{{ end_date or '' }}" aria-label="To date">
+                <button type="submit" class="filter-btn">Apply</button>
+            </form>
+            {% if active_preset != 'all' or start_date %}
+            <p class="filter-label">
+                {% if active_preset == 'last30' %}Showing: Last 30 Days
+                {% elif active_preset == 'last90' %}Showing: Last 3 Months
+                {% elif active_preset == 'last365' %}Showing: This Year
+                {% elif start_label and end_label %}Showing: {{ start_label }} – {{ end_label }}
+                {% endif %}
+            </p>
+            {% endif %}
+        </section>
+
         <!-- ── Section 2: Summary stats row ── -->
         <section class="stats-row" aria-label="Summary statistics">
             <div class="stat-card">
