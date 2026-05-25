@@ -1,13 +1,24 @@
 import functools
 import os
 import sqlite3
+from datetime import datetime
 from typing import Callable
 
 from dotenv import load_dotenv
 from flask import Flask, Response, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
-from database.db import get_db, get_user_by_email, init_db, register_user, seed_db
+from database.db import (
+    get_category_breakdown,
+    get_db,
+    get_profile_stats,
+    get_recent_transactions,
+    get_user_by_email,
+    get_user_by_id,
+    init_db,
+    register_user,
+    seed_db,
+)
 
 load_dotenv()
 
@@ -117,32 +128,31 @@ def logout() -> Response:
 @app.route("/profile")
 @login_required
 def profile() -> str:
+    user_id: int = session["user_id"]
+
+    db_user = get_user_by_id(user_id)
+    if db_user is None:
+        session.clear()
+        flash("Session invalid — please log in again.")
+        return redirect(url_for("login"))
+
+    try:
+        member_since = datetime.strptime(db_user["created_at"], "%Y-%m-%d %H:%M:%S").strftime("%B %Y")
+    except (ValueError, TypeError):
+        member_since = "Unknown"
+
+    initials = "".join(w[0].upper() for w in db_user["name"].split()[:2])
+
     user = {
-        "name": "Alex Rivera",
-        "email": "alex@example.com",
-        "initials": "AR",
-        "member_since": "January 2024",
+        "name": db_user["name"],
+        "email": db_user["email"],
+        "initials": initials,
+        "member_since": member_since,
     }
-    stats = {
-        "total_spent": "$2,840.50",
-        "transaction_count": 24,
-        "top_category": "Food & Dining",
-    }
-    transactions = [
-        {"date": "May 20, 2025", "description": "Grocery run",       "category": "food",      "amount": "$87.40"},
-        {"date": "May 18, 2025", "description": "Monthly gym",       "category": "health",    "amount": "$45.00"},
-        {"date": "May 15, 2025", "description": "Electricity bill",  "category": "utilities", "amount": "$120.00"},
-        {"date": "May 12, 2025", "description": "Dinner out",        "category": "food",      "amount": "$63.20"},
-        {"date": "May 08, 2025", "description": "Bus pass",          "category": "transport", "amount": "$30.00"},
-        {"date": "May 05, 2025", "description": "Netflix",           "category": "leisure",   "amount": "$15.99"},
-    ]
-    categories = [
-        {"name": "Food & Dining", "amount": "$620.00", "pct": 72},
-        {"name": "Utilities",     "amount": "$240.00", "pct": 28},
-        {"name": "Health",        "amount": "$180.00", "pct": 21},
-        {"name": "Transport",     "amount": "$120.00", "pct": 14},
-        {"name": "Leisure",       "amount": "$95.00",  "pct": 11},
-    ]
+    stats = get_profile_stats(user_id)
+    transactions = get_recent_transactions(user_id, limit=6)
+    categories = get_category_breakdown(user_id)
+
     return render_template(
         "profile.html",
         user=user,
