@@ -1,4 +1,6 @@
-"""Tests for the /profile route (Step 4 — static UI, hardcoded data)."""
+"""Tests for the /profile route (Step 5 — real-DB data)."""
+
+import database.db as db_module
 
 
 def test_profile_redirects_when_not_logged_in(client):
@@ -10,8 +12,9 @@ def test_profile_redirects_when_not_logged_in(client):
 
 def test_profile_renders_when_logged_in(client):
     """Authenticated request returns 200 with all four sections present."""
+    user_id = db_module.register_user("Test User", "test@example.com", "password123")
     with client.session_transaction() as sess:
-        sess["user_id"] = 1
+        sess["user_id"] = user_id
         sess["user_name"] = "Test User"
 
     rv = client.get("/profile")
@@ -31,47 +34,72 @@ def test_profile_renders_when_logged_in(client):
 
 def test_profile_shows_user_info_card(client):
     """Profile page renders name and email in the user info card."""
+    user_id = db_module.register_user("Jane Doe", "jane@example.com", "password123")
     with client.session_transaction() as sess:
-        sess["user_id"] = 1
-        sess["user_name"] = "Test User"
+        sess["user_id"] = user_id
+        sess["user_name"] = "Jane Doe"
 
     rv = client.get("/profile")
     assert rv.status_code == 200
-    assert b"Alex Rivera" in rv.data
-    assert b"alex@example.com" in rv.data
-    assert b"January 2024" in rv.data
+    assert b"Jane Doe" in rv.data
+    assert b"jane@example.com" in rv.data
 
 
 def test_profile_shows_transaction_rows(client):
-    """Transaction table contains at least three hardcoded rows."""
+    """Transaction table contains rows from DB-inserted expenses."""
+    user_id = db_module.register_user("Jane Doe", "jane@example.com", "password123")
+    conn = db_module.get_db()
+    conn.executemany(
+        "INSERT INTO expenses (user_id, amount, category, date, description) VALUES (?, ?, ?, ?, ?)",
+        [
+            (user_id, 50.00, "Food", "2026-05-20", "Test grocery"),
+            (user_id, 30.00, "Health", "2026-05-18", "Test gym"),
+            (user_id, 100.00, "Bills", "2026-05-15", "Test electricity"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
     with client.session_transaction() as sess:
-        sess["user_id"] = 1
-        sess["user_name"] = "Test User"
+        sess["user_id"] = user_id
 
     rv = client.get("/profile")
     assert rv.status_code == 200
-    assert b"Grocery run" in rv.data
-    assert b"Monthly gym" in rv.data
-    assert b"Electricity bill" in rv.data
+    assert b"Test grocery" in rv.data
+    assert b"Test gym" in rv.data
+    assert b"Test electricity" in rv.data
 
 
 def test_profile_shows_category_breakdown(client):
-    """Category breakdown contains at least three categories."""
+    """Category breakdown contains categories from DB-inserted expenses."""
+    user_id = db_module.register_user("Jane Doe", "jane@example.com", "password123")
+    conn = db_module.get_db()
+    conn.executemany(
+        "INSERT INTO expenses (user_id, amount, category, date, description) VALUES (?, ?, ?, ?, ?)",
+        [
+            (user_id, 50.00, "Food", "2026-05-20", "Test grocery"),
+            (user_id, 30.00, "Health", "2026-05-18", "Test gym"),
+            (user_id, 100.00, "Bills", "2026-05-15", "Test electricity"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
     with client.session_transaction() as sess:
-        sess["user_id"] = 1
-        sess["user_name"] = "Test User"
+        sess["user_id"] = user_id
 
     rv = client.get("/profile")
     assert rv.status_code == 200
-    assert b"Food &amp; Dining" in rv.data
-    assert b"Utilities" in rv.data
+    assert b"Food" in rv.data
     assert b"Health" in rv.data
+    assert b"Bills" in rv.data
 
 
 def test_profile_no_hex_colours(client):
     """profile.html must not contain raw hex colour literals."""
+    user_id = db_module.register_user("Test User", "test@example.com", "password123")
     with client.session_transaction() as sess:
-        sess["user_id"] = 1
+        sess["user_id"] = user_id
         sess["user_name"] = "Test User"
 
     rv = client.get("/profile")

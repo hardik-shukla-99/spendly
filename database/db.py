@@ -99,3 +99,115 @@ def register_user(name: str, email: str, password: str) -> int:
         return cursor.lastrowid
     finally:
         conn.close()
+
+
+def get_recent_transactions(user_id: int, limit: int = 6) -> list[dict]:
+    from datetime import datetime
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """
+            SELECT date, description, category, amount
+            FROM expenses
+            WHERE user_id = ?
+            ORDER BY date DESC, id DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        result = []
+        for row in rows:
+            try:
+                fmt_date = datetime.strptime(row["date"], "%Y-%m-%d").strftime("%B %d, %Y")
+            except (ValueError, TypeError):
+                fmt_date = row["date"]
+            result.append({
+                "date": fmt_date,
+                "description": row["description"] or "",
+                "category": (row["category"] or "").lower(),
+                "amount": "${:,.2f}".format(row["amount"]),
+            })
+        return result
+    finally:
+        conn.close()
+
+
+def get_profile_stats(user_id: int) -> dict:
+    conn = get_db()
+    try:
+        row = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(amount), 0) AS total_spent,
+                COUNT(*)                  AS transaction_count
+            FROM expenses
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        total_spent = row["total_spent"]
+        transaction_count = row["transaction_count"]
+
+        top_row = conn.execute(
+            """
+            SELECT category
+            FROM expenses
+            WHERE user_id = ?
+            GROUP BY category
+            ORDER BY SUM(amount) DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+        top_category = top_row["category"] if top_row else ""
+
+        return {
+            "total_spent": "${:,.2f}".format(total_spent),
+            "transaction_count": transaction_count,
+            "top_category": top_category,
+        }
+    finally:
+        conn.close()
+
+
+def get_user_by_id(user_id: int) -> sqlite3.Row | None:
+    conn = get_db()
+    try:
+        return conn.execute(
+            "SELECT id, name, email, created_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+
+def get_category_breakdown(user_id: int) -> list[dict]:
+    conn = get_db()
+    try:
+        grand_total = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            """
+            SELECT category, SUM(amount) AS cat_total
+            FROM expenses
+            WHERE user_id = ?
+            GROUP BY category
+            ORDER BY cat_total DESC
+            """,
+            (user_id,),
+        ).fetchall()
+
+        result = []
+        for row in rows:
+            pct = int(round(row["cat_total"] / grand_total * 100)) if grand_total else 0
+            result.append({
+                "name": row["category"],
+                "amount": "${:,.2f}".format(row["cat_total"]),
+                "pct": pct,
+            })
+        return result
+    finally:
+        conn.close()
