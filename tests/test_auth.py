@@ -126,3 +126,27 @@ def test_login_required_redirects_unauthenticated(client):
     # login_required returns a redirect Response when unauthenticated
     assert response.status_code == 302
     assert "/login" in response.headers["Location"]
+
+
+# ---------------------------------------------------------------------------
+# Already-logged-in redirects
+# ---------------------------------------------------------------------------
+
+def test_login_page_redirects_when_already_authenticated(client):
+    _register_user()
+    _login(client)
+
+    response = client.get("/login", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert "/" in response.headers["Location"]
+
+
+def test_register_page_redirects_when_already_authenticated(client):
+    _register_user()
+    _login(client)
+
+    response = client.get("/register", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert "/" in response.headers["Location"]
