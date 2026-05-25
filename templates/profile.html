@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Profile — Spendly{% endblock %}
+
+{% block content %}
+<main class="main-content profile-page">
+    <div class="profile-inner">
+
+        <!-- ── Section 1: User info card ── -->
+        <section class="profile-header-card" aria-labelledby="profile-name">
+            <div class="profile-avatar" aria-hidden="true">{{ user.initials }}</div>
+            <div class="profile-identity">
+                <h1 id="profile-name" class="profile-name">{{ user.name }}</h1>
+                <p class="profile-email">{{ user.email }}</p>
+                <p class="profile-since">Member since {{ user.member_since }}</p>
+            </div>
+        </section>
+
+        <!-- ── Section 2: Summary stats row ── -->
+        <section class="stats-row" aria-label="Summary statistics">
+            <div class="stat-card">
+                <span class="stat-label">Total Spent</span>
+                <span class="stat-value">{{ stats.total_spent }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Transactions</span>
+                <span class="stat-value">{{ stats.transaction_count }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Top Category</span>
+                <span class="stat-value stat-value--text">{{ stats.top_category }}</span>
+            </div>
+        </section>
+
+        <!-- ── Section 3: Transaction history table ── -->
+        <section class="profile-section" aria-labelledby="transactions-heading">
+            <h2 id="transactions-heading" class="section-title">Recent Transactions</h2>
+            <div class="table-wrap">
+                <table class="expense-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Category</th>
+                            <th scope="col" class="col-amount">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tx in transactions %}
+                        <tr>
+                            <td class="tx-date">{{ tx.date }}</td>
+                            <td>{{ tx.description }}</td>
+                            <td>
+                                <span class="cat-badge cat-badge--{{ tx.category }}">
+                                    {{ tx.category | title }}
+                                </span>
+                            </td>
+                            <td class="col-amount tx-amount">{{ tx.amount }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ── Section 4: Category breakdown ── -->
+        <section class="profile-section" aria-labelledby="categories-heading">
+            <h2 id="categories-heading" class="section-title">Spending by Category</h2>
+            <ul class="category-breakdown" role="list">
+                {% for cat in categories %}
+                <li class="cat-row">
+                    <span class="cat-row__name">{{ cat.name }}</span>
+                    <div class="cat-row__track"
+                         role="progressbar"
+                         aria-valuenow="{{ cat.pct }}"
+                         aria-valuemin="0"
+                         aria-valuemax="100"
+                         aria-label="{{ cat.name }}: {{ cat.pct }}%">
+                        <div class="cat-row__bar" style="width: {{ cat.pct }}%"></div>
+                    </div>
+                    <span class="cat-row__amount">{{ cat.amount }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+
+    </div>
+</main>
+{% endblock %}
