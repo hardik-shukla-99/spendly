@@ -18,6 +18,7 @@ from flask import (
 from werkzeug.security import check_password_hash
 
 from database.db import (
+    add_expense_to_db,
     get_category_breakdown,
     get_db,
     get_profile_stats,
@@ -62,6 +63,15 @@ def login_required(f: Callable) -> Callable:
 
 _VALID_PRESETS: set[str] = {"all", "last30", "last90", "last365"}
 _PRESET_DAYS: dict[str, int] = {"last30": 30, "last90": 90, "last365": 365}
+_VALID_CATEGORIES: list[str] = [
+    "Food",
+    "Transport",
+    "Bills",
+    "Health",
+    "Entertainment",
+    "Shopping",
+    "Other",
+]
 
 
 def parse_date_filter(args: dict) -> tuple[str | None, str | None]:
@@ -259,9 +269,59 @@ def profile() -> str:
     )
 
 
-@app.route("/expenses/add")
-def add_expense():
-    return "Add expense — coming in Step 7"
+@app.route("/expenses/add", methods=["GET", "POST"])
+@login_required
+def add_expense() -> str | Response:
+    if request.method == "GET":
+        return render_template(
+            "add_expense.html",
+            categories=_VALID_CATEGORIES,
+            today=date.today().isoformat(),
+        )
+
+    # --- POST ---
+    user_id: int = session["user_id"]
+    raw_amount = request.form.get("amount", "").strip()
+    category = request.form.get("category", "").strip()
+    raw_date = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()
+
+    def _err(msg: str) -> str:
+        return render_template(
+            "add_expense.html",
+            categories=_VALID_CATEGORIES,
+            error=msg,
+            amount=raw_amount,
+            category=category,
+            date=raw_date,
+            description=description,
+        )
+
+    # Validate amount
+    if not raw_amount:
+        return _err("Amount is required.")
+    try:
+        amount = float(raw_amount)
+    except ValueError:
+        return _err("Amount must be a valid number.")
+    if amount <= 0:
+        return _err("Amount must be greater than zero.")
+
+    # Validate category
+    if category not in _VALID_CATEGORIES:
+        return _err("Please select a valid category.")
+
+    # Validate date
+    if not raw_date:
+        return _err("Date is required.")
+    try:
+        datetime.strptime(raw_date, "%Y-%m-%d")
+    except ValueError:
+        return _err("Please enter a valid date.")
+
+    add_expense_to_db(user_id, amount, category, raw_date, description)
+    flash("Expense added successfully.")
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/edit")
