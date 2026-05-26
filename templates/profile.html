@@ -13,6 +13,9 @@
                 <p class="profile-email">{{ user.email }}</p>
                 <p class="profile-since">Member since {{ user.member_since }}</p>
             </div>
+            <a href="{{ url_for('add_expense') }}" class="btn-primary" style="margin-left:auto;white-space:nowrap">
+                + Add Expense
+            </a>
         </section>
 
         <!-- ── Filter bar ── -->

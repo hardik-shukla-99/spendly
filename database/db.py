@@ -82,6 +82,26 @@ def seed_db() -> None:
         conn.close()
 
 
+def add_expense_to_db(
+    user_id: int,
+    amount: float,
+    category: str,
+    date: str,
+    description: str,
+) -> int:
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO expenses (user_id, amount, category, date, description)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (user_id, amount, category, date, description),
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+
 def get_user_by_email(email: str) -> sqlite3.Row | None:
     conn = get_db()
     try:
