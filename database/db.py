@@ -102,6 +102,37 @@ def add_expense_to_db(
         conn.close()
 
 
+def get_expense_by_id(expense_id: int) -> sqlite3.Row | None:
+    conn = get_db()
+    try:
+        return conn.execute(
+            "SELECT id, user_id, amount, category, date, description"
+            " FROM expenses WHERE id = ?",
+            (expense_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+
+def update_expense_in_db(
+    expense_id: int,
+    amount: float,
+    category: str,
+    date: str,
+    description: str,
+) -> None:
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE expenses SET amount = ?, category = ?, date = ?, description = ?"
+            " WHERE id = ?",
+            (amount, category, date, description, expense_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_user_by_email(email: str) -> sqlite3.Row | None:
     conn = get_db()
     try:
@@ -159,7 +190,7 @@ def get_recent_transactions(
         where_clause, params = _build_date_where(user_id, start, end)
         params.append(limit)
         sql = (
-            "SELECT date, description, category, amount"
+            "SELECT id, date, description, category, amount"
             " FROM expenses"
             " " + where_clause + " ORDER BY date DESC, id DESC"
             " LIMIT ?"
@@ -175,6 +206,7 @@ def get_recent_transactions(
                 fmt_date = row["date"]
             result.append(
                 {
+                    "id": row["id"],
                     "date": fmt_date,
                     "description": row["description"] or "",
                     "category": (row["category"] or "").lower(),
