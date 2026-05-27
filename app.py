@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import (
     Flask,
     Response,
+    abort,
     flash,
     redirect,
     render_template,
@@ -21,6 +22,7 @@ from database.db import (
     add_expense_to_db,
     get_category_breakdown,
     get_db,
+    get_expense_by_id,
     get_profile_stats,
     get_recent_transactions,
     get_user_by_email,
@@ -28,6 +30,7 @@ from database.db import (
     init_db,
     register_user,
     seed_db,
+    update_expense_in_db,
 )
 
 load_dotenv()
@@ -324,9 +327,69 @@ def add_expense() -> str | Response:
     return redirect(url_for("profile"))
 
 
-@app.route("/expenses/<int:id>/edit")
-def edit_expense(id):
-    return "Edit expense — coming in Step 8"
+@app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_expense(id: int) -> str | Response:
+    expense = get_expense_by_id(id)
+    if expense is None:
+        abort(404)
+    if expense["user_id"] != session["user_id"]:
+        abort(403)
+
+    if request.method == "GET":
+        return render_template(
+            "edit_expense.html",
+            categories=_VALID_CATEGORIES,
+            expense=expense,
+            amount=expense["amount"],
+            category=expense["category"],
+            date=expense["date"],
+            description=expense["description"] or "",
+        )
+
+    # --- POST ---
+    raw_amount = request.form.get("amount", "").strip()
+    category = request.form.get("category", "").strip()
+    raw_date = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()
+
+    def _err(msg: str) -> str:
+        return render_template(
+            "edit_expense.html",
+            categories=_VALID_CATEGORIES,
+            expense=expense,
+            error=msg,
+            amount=raw_amount,
+            category=category,
+            date=raw_date,
+            description=description,
+        )
+
+    # Validate amount
+    if not raw_amount:
+        return _err("Amount is required.")
+    try:
+        amount = float(raw_amount)
+    except ValueError:
+        return _err("Amount must be a valid number.")
+    if amount <= 0:
+        return _err("Amount must be greater than zero.")
+
+    # Validate category
+    if category not in _VALID_CATEGORIES:
+        return _err("Please select a valid category.")
+
+    # Validate date
+    if not raw_date:
+        return _err("Date is required.")
+    try:
+        datetime.strptime(raw_date, "%Y-%m-%d")
+    except ValueError:
+        return _err("Please enter a valid date.")
+
+    update_expense_in_db(id, amount, category, raw_date, description)
+    flash("Expense updated successfully.")
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/delete")
